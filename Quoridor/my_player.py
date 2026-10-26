@@ -1,6 +1,8 @@
 from player_quoridor import PlayerQuoridor
 from seahorse.game.action import Action
+from seahorse.game.stateless_action import StatelessAction
 from game_state_quoridor import GameStateQuoridor
+from actions_quoridor import Wall, Orientation
 from seahorse.utils.custom_exceptions import MethodNotImplementedError
 
 class MyPlayer(PlayerQuoridor):
@@ -22,22 +24,49 @@ class MyPlayer(PlayerQuoridor):
         """
         super().__init__(piece_type, goal_row, name)
 
+    def _nearby_walls(self, state: GameStateQuoridor, around_position: tuple, margin: int = 2) -> list:
+        """
+        Returns the wall slots within `margin` cells of `around_position`,
+        instead of every slot on the board. This misses a wall that would
+        matter far from that position, trading completeness for fewer
+        legality checks per node.
+        """
+        dimension = state.rep.dimension
+        row, col = around_position
+
+        walls = []
+        for r in range(max(0, row - margin), min(dimension - 1, row + margin) + 1):
+            for c in range(max(0, col - margin), min(dimension - 1, col + margin) + 1):
+                walls.append(Wall(row=r, col=c, orientation=Orientation.HORIZONTAL))
+                walls.append(Wall(row=r, col=c, orientation=Orientation.VERTICAL))
+
+        return walls
+
     def _filtered_actions(self, state: GameStateQuoridor) -> list:
         """
-        Returns every legal moving action, but only the wall placements that
-        improve the mover's own (opponent_distance  own_distance) heuristic,
-        the same one used as the depth cutoff heuristic. This cuts branching factor.
+        Returns every legal moving action, but only the wall placements near
+        the opponent that improve the mover's own (opponent_distance -
+        own_distance) heuristic, the same one used as the depth cutoff
+        heuristic. Only scanning wall slots near the opponent, instead of
+        every slot on the board, cuts both the branching factor and the
+        number of legality checks paid per node.
         """
         active = state.active_player
         other = state._opponent(active)
 
         baseline = state._shortest_path(other) - state._shortest_path(active)
 
-        actions = []
-        for action in state.generate_possible_stateless_actions():
-            if action.data["type"] == "move":
-                actions.append(action)
+        actions = list(state._legal_moves())
+
+        opponent_position = state.rep.pawn_positions[other.get_id()]
+        for wall in self._nearby_walls(state, opponent_position):
+            if not state._is_wall_legal(wall):
                 continue
+
+            action = StatelessAction({
+                "type": "vertical" if wall.orientation == Orientation.VERTICAL else "horizontal",
+                "destination": (wall.row, wall.col),
+            })
 
             temp_state = state.apply_action(action)
             new_metric = temp_state._shortest_path(other) - temp_state._shortest_path(active)
@@ -45,6 +74,18 @@ class MyPlayer(PlayerQuoridor):
                 actions.append(action)
 
         return actions
+
+    def _ordered_children(self, state: GameStateQuoridor, actions: list, maximizing: bool) -> list:
+        """
+        Pairs each action with its resulting state, sorted by evaluate_heuristic
+        so the most promising actions are tried first. Best-for-me first when
+        maximizing, worst-for-me first when minimizing, since that's the order
+        the mover at this node would actually prefer, so alpha-beta tightens its
+        bound sooner and prunes more of the remaining siblings.
+        """
+        children = [(action, state.apply_action(action)) for action in actions]
+        children.sort(key=lambda pair: self.evaluate_heuristic(pair[1]), reverse=maximizing)
+        return children
 
     def compute_action(self, current_state: GameStateQuoridor, remaining_time: float = 15*60, **kwargs) -> Action:
         """
@@ -57,20 +98,22 @@ class MyPlayer(PlayerQuoridor):
             Action: The best action as determined by minimax.
         """
 
-        depth = 2 # 3 moves each: me, opponent, me, opponent, me, opponent
-
         actions = tuple(self._filtered_actions(current_state))
 
         if not actions:
             raise RuntimeError("No legal action available.")
+
+        opponent_id = current_state._opponent(self).get_id()
+        walls_left = current_state.rep.remaining_walls[self.get_id()] + current_state.rep.remaining_walls[opponent_id]
+
+        depth = 6 if walls_left <= 3 and len(actions) <= 6 else 4 # 3 moves each: me, opponent, me, opponent, me, opponent
 
         best_action = None
         best_value = float("-inf")
         alpha = float("-inf")
         beta = float("inf")
 
-        for action in actions:
-            child_state = current_state.apply_action(action)
+        for action, child_state in self._ordered_children(current_state, actions, True):
 
             #We maximize here over value, depth bellow minimizes
             value = self.minimax(child_state, depth - 1, alpha, beta, maximizing=False)
@@ -108,8 +151,7 @@ class MyPlayer(PlayerQuoridor):
         #maxValue in the slides
         if maximizing:
             best_val = float("-inf")
-            for action in actions:
-                child_state = state.apply_action(action)
+            for action, child_state in self._ordered_children(state, actions, True):
                 value = self.minimax(child_state, depth - 1, alpha, beta, maximizing=False)
                 if value > best_val:
                     best_val = value
@@ -121,8 +163,7 @@ class MyPlayer(PlayerQuoridor):
         #minValue in the slides
         else:
             best_val = float("inf")
-            for action in actions:
-                child_state = state.apply_action(action)
+            for action, child_state in self._ordered_children(state, actions, False):
                 value = self.minimax(child_state, depth - 1, alpha, beta, maximizing=True)
                 if value < best_val:
                     best_val = value
