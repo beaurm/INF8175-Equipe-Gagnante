@@ -1,12 +1,13 @@
 [project]
-name = "inf8175-equipe-gagnante"
+name = "projet-quoridor-a2026"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 authors = [
+    { email = "alex.beaurg@gmail.com" }
     { name = "djomajeff", email = "djomajeff@gmail.com" }
 ]
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 dependencies = [
     "colorama>=0.4.6",
     "numpy>=2.5.3",
