@@ -100,11 +100,8 @@ class MyPlayer(PlayerQuoridor):
             return float("inf") if state.scores[self.get_id()] == 1.0 else float("-inf")
 
         if depth == 0:
-            #Basic heuristic to evaluate leaf values: just diff between your distance and opponent to the goal.
-            opponent = state._opponent(self)
-            my_dist = state._shortest_path(self)
-            opp_dist = state._shortest_path(opponent)
-            return opp_dist - my_dist
+            #heuristic evaluating the
+            return self.evaluate_heuristic(state=state)
 
         actions = tuple(self._filtered_actions(state))
 
@@ -120,6 +117,7 @@ class MyPlayer(PlayerQuoridor):
                 if best_val >= beta:
                     break  # beta cutoff
             return best_val
+        
         #minValue in the slides
         else:
             best_val = float("inf")
@@ -132,3 +130,50 @@ class MyPlayer(PlayerQuoridor):
                 if best_val <= alpha:
                     break  # alpha cutoff
             return best_val
+    
+    
+    def evaluate_heuristic(self, state: GameStateQuoridor) -> float:
+        """
+            Evaluate the given game state using a weighted linear heuristic
+
+            Args:
+                state (GameStateQuoridor): The game state to evaluate.
+                
+            Returns:
+                float: the heuristic score of the state from this player's perspective.
+                Higher scores indicate more favorable position.
+        """
+            
+        opponent = state._opponent(self)
+        my_id = self.get_id()
+        opponent_id = opponent.get_id()
+        
+        
+        # H1: Shortest-path distance advantage
+        my_dist = state._shortest_path(self)
+        opp_dist = state._shortest_path(opponent)
+        h1_distance = opp_dist - my_dist
+        
+        # H2: Remaining wall advantage
+        my_walls = state.rep.remaining_walls[my_id]
+        opp_walls = state.rep.remaining_walls[opponent_id]
+        h2_wall_remaining = opp_walls - my_walls
+        
+        # H3: Central-column advantage
+        center_col = (state.rep.dimension - 1) / 2
+        my_position = state.rep.pawn_positions[my_id]
+        opp_position = state.rep.pawn_positions[opponent_id]
+        
+        my_to_center = abs(my_position[1] - center_col)
+        opp_to_center = abs(opp_position[1] - center_col)
+
+        h3_position_to_center = opp_to_center - my_to_center
+
+        # Linear heuristic with weight chosen manually
+        h = (
+            0.8 * h1_distance
+            + 0.35 * h2_wall_remaining
+            + 0.2 * h3_position_to_center
+        )
+        
+        return h
