@@ -199,7 +199,7 @@ class MyPlayer(PlayerQuoridor):
         # H2: Remaining wall advantage
         my_walls = state.rep.remaining_walls[my_id]
         opp_walls = state.rep.remaining_walls[opponent_id]
-        h2_wall_remaining = opp_walls - my_walls
+        h2_wall_remaining = my_walls - opp_walls
         
         # H3: Central-column advantage
         center_col = (state.rep.dimension - 1) / 2
