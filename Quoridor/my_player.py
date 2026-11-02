@@ -108,7 +108,8 @@ class MyPlayer(PlayerQuoridor):
 
         depth = 6 if walls_left <= 3 and len(actions) <= 6 else 4 # 3 moves each: me, opponent, me, opponent, me, opponent
 
-        best_action = None
+        ordered = self._ordered_children(current_state, actions, True)
+        best_action, best_value = ordered[0][0], float("-inf")
         best_value = float("-inf")
         alpha = float("-inf")
         beta = float("inf")
