@@ -132,7 +132,7 @@ class MyPlayer(PlayerQuoridor):
                     if child_position != current_position and child_position in self._recent_positions:
                         value -= self.REPEAT_PENALTY
  
-                    if value > depth_best_value:
+                    if value > depth_best_value or depth_best_action is None:
                         depth_best_value = value
                         depth_best_action = action
                     alpha = max(alpha, depth_best_value)
@@ -225,16 +225,16 @@ class MyPlayer(PlayerQuoridor):
         my_position = state.rep.pawn_positions[my_id]
         opp_position = state.rep.pawn_positions[opponent_id]
         
-        my_to_center = abs(my_position[1] - center_col)
+        # my_to_center = abs(my_position[1] - center_col)
         opp_to_center = abs(opp_position[1] - center_col)
 
-        h3_position_to_center = opp_to_center - my_to_center
+        # h3_position_to_center = opp_to_center - my_to_center
 
         # Linear heuristic with weight chosen manually
         h = (
-            0.8 * h1_distance
-            + 0.35 * h2_wall_remaining
-            + 0.2 * h3_position_to_center
+            0.9 * h1_distance
+            + 0.25 * h2_wall_remaining
+            # + 0.2 * h3_position_to_center
         )
         
         return h
