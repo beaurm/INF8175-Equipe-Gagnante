@@ -89,7 +89,7 @@ class MyPlayer(PlayerQuoridor):
         children.sort(key=lambda pair: self.evaluate_heuristic(pair[1]), reverse=maximizing)
         return children
  
-    def _time_budget(self, remaining_time, step):
+    def _time_budget(self, remaining_time, step=0):
         moves_left = max(15, 60 - step // 2)
         if remaining_time < 30:
             return 0.3
@@ -112,7 +112,7 @@ class MyPlayer(PlayerQuoridor):
         max_depth = 8 if walls_left <= 3 and len(actions) <= 6 else 6
  
         start = time.time()
-        deadline = start + self._time_budget(remaining_time)
+        deadline = start + self._time_budget(remaining_time, current_state.get_step())
         current_position = tuple(current_state.rep.pawn_positions[my_id])
  
         ordered = self._ordered_children(current_state, actions, True)
