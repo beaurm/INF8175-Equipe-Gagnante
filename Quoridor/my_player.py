@@ -89,11 +89,11 @@ class MyPlayer(PlayerQuoridor):
         children.sort(key=lambda pair: self.evaluate_heuristic(pair[1]), reverse=maximizing)
         return children
  
-    def _time_budget(self, remaining_time: float) -> float:
-        """Seconds this move may use, derived from the remaining clock."""
-        if remaining_time < 20:
+    def _time_budget(self, remaining_time, step):
+        moves_left = max(15, 60 - step // 2)
+        if remaining_time < 30:
             return 0.3
-        return max(0.5, min(remaining_time / 25, 8.0))
+        return min(remaining_time / moves_left, 25.0)
  
     def compute_action(self, current_state: GameStateQuoridor, remaining_time: float = 15*60, **kwargs) -> Action:
         """
@@ -193,48 +193,19 @@ class MyPlayer(PlayerQuoridor):
                     break  # alpha cutoff
             return best_val
         
-    def evaluate_heuristic(self, state: GameStateQuoridor) -> float:
-        """
-            Evaluate the given game state using a weighted linear heuristic
-
-            Args:
-                state (GameStateQuoridor): The game state to evaluate.
-                
-            Returns:
-                float: the heuristic score of the state from this player's perspective.
-                Higher scores indicate more favorable position.
-        """
-            
+    def evaluate_heuristic(self, state):
         opponent = state._opponent(self)
-        my_id = self.get_id()
-        opponent_id = opponent.get_id()
-        
-        
-        # H1: Shortest-path distance advantage
+        my_id, opp_id = self.get_id(), opponent.get_id()
         my_dist = state._shortest_path(self)
         opp_dist = state._shortest_path(opponent)
-        h1_distance = opp_dist - my_dist
-        
-        # H2: Remaining wall advantage
         my_walls = state.rep.remaining_walls[my_id]
-        opp_walls = state.rep.remaining_walls[opponent_id]
-        h2_wall_remaining = my_walls - opp_walls
-        
-        # H3: Central-column advantage
-        center_col = (state.rep.dimension - 1) / 2
-        my_position = state.rep.pawn_positions[my_id]
-        opp_position = state.rep.pawn_positions[opponent_id]
-        
-        # my_to_center = abs(my_position[1] - center_col)
-        opp_to_center = abs(opp_position[1] - center_col)
+        opp_walls = state.rep.remaining_walls[opp_id]
+        i_move = state.active_player.get_id() == my_id
 
-        # h3_position_to_center = opp_to_center - my_to_center
+        # Course pure : plus aucun mur, le résultat est quasi déterministe
+        if my_walls == 0 and opp_walls == 0:
+            i_win = my_dist <= opp_dist if i_move else my_dist < opp_dist
+            return 100 - my_dist if i_win else -100 + opp_dist
 
-        # Linear heuristic with weight chosen manually
-        h = (
-            0.9 * h1_distance
-            + 0.25 * h2_wall_remaining
-            # + 0.2 * h3_position_to_center
-        )
-        
-        return h
+        tempo = 0.5 if i_move else -0.5
+        return 0.9 * (opp_dist - my_dist) + 0.25 * (my_walls - opp_walls) + tempo
